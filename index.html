@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>30 Seconds - klasversie</title>
 <style>
-  :root { --bg:#f7f7fb; --card:#ffffff; --text:#15151f; --muted:#606070; --accent:#2f5cff; --danger:#d93025; --ok:#15803d; --warn:#f59e0b; }
+  :root { --bg:#f7f7fb; --card:#ffffff; --text:#15151f; --muted:#606070; --accent:#2f5cff; --teamA:#1d4ed8; --teamA-bg:#e8f0ff; --teamB:#c2410c; --teamB-bg:#ffedd5; --danger:#d93025; --ok:#15803d; --warn:#f59e0b; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
   main { max-width: 820px; margin: 0 auto; padding: 10px 12px 18px; }
@@ -42,6 +42,12 @@
   details { margin-top:10px; color:var(--muted); }
   summary { cursor:pointer; font-weight:700; color:var(--text); }
   .small { font-size:.82rem; color:var(--muted); }
+  #teamBanner.teamA { background:var(--teamA-bg); color:var(--teamA); }
+  #teamBanner.teamB { background:var(--teamB-bg); color:var(--teamB); }
+  .teacherBox { margin-top:12px; background:#f7f7fb; border-radius:14px; padding:12px; }
+  textarea { width:100%; min-height:130px; border:1px solid #d7d9e5; border-radius:12px; padding:10px; font-family:inherit; resize:vertical; }
+  input[type=file] { width:100%; margin:8px 0; }
+  .teacherStatus { font-weight:700; margin-top:8px; }
   @media (max-width:650px) { .stats { grid-template-columns: repeat(2, 1fr); } .panel { padding:12px; } .words { min-height:220px; } }
 </style>
 </head>
@@ -78,7 +84,26 @@
 
   <details>
     <summary>Spelregels / docentopties</summary>
-    <p>Gebruik één laptop per groepje of projecteer klassikaal. Met <b>Schud kaarten</b> wordt de volgorde willekeurig. Scores blijven staan tot je op reset drukt.</p>
+    <p>Gebruik één laptop per twee teams of projecteer klassikaal. Met <b>Schud kaarten</b> wordt de volgorde willekeurig. Scores blijven staan tot je op reset drukt.</p>
+    <div class="teacherBox">
+      <h3 style="margin:0 0 8px;">Docentenmodus: eigen kaartjes gebruiken</h3>
+      <p class="small">Plak woorden uit Word/Excel hieronder. Zet elk woord op een nieuwe regel, of gebruik per kaartje één regel met 5 woorden gescheiden door komma's of puntkomma's. De website maakt automatisch kaartjes van 5 woorden en bewaart ze in deze browser.</p>
+      <textarea id="teacherInput" placeholder="Voorbeeld:
+Indonesië
+Mbappé
+Escaperoom
+Appel
+Suppen
+
+of:
+Indonesië, Mbappé, Escaperoom, Appel, Suppen"></textarea>
+      <input id="teacherFile" type="file" accept=".txt,.csv" />
+      <div class="buttons">
+        <button id="importBtn" class="primary">Gebruik deze woorden</button>
+        <button id="restoreBtn">Terug naar originele kaartjes</button>
+      </div>
+      <div id="teacherStatus" class="teacherStatus small"></div>
+    </div>
   </details>
 </main>
 
@@ -121,7 +146,7 @@
 </div>
 
 <script>
-const originalCards = [
+const defaultCards = [
   [
     "Indonesië",
     "Mbappé",
@@ -347,9 +372,11 @@ const originalCards = [
     "Fortnite"
   ]
 ];
+let originalCards = loadSavedCards() || [...defaultCards];
 let cards = [...originalCards];
 let idx = 0, time = 30, interval = null, graceTimeout = null, countdownTimeout = null, roundScore = 0, scoreA = 0, scoreB = 0, roundActive = false, graceActive = false, currentTeam="A", roundFinished = false;
 let selectedWords = new Set();
+let gameStarted = false;
 const el = id => document.getElementById(id);
 function render() {
   el('cardNr').textContent = `${idx+1}/${cards.length}`;
@@ -359,9 +386,12 @@ function render() {
   el('timer').textContent = graceActive ? 'Tijd!' : time;
   el('timer').classList.toggle('low', time <= 5 || graceActive);
   const nextTeam = currentTeam === 'A' ? 'B' : 'A';
+  el('teamBanner').classList.remove('teamA','teamB');
+  el('teamBanner').classList.add((roundFinished ? nextTeam : currentTeam) === 'A' ? 'teamA' : 'teamB');
+  const icon = (roundFinished ? nextTeam : currentTeam) === 'A' ? '🔵' : '🟠';
   el('teamBanner').textContent = graceActive
     ? `⏰ Tijd! Nog 3 seconden om laatste goede woorden aan te klikken`
-    : (roundFinished ? `⏳ Team ${nextTeam} is zo aan de beurt` : `🔵 Team ${currentTeam} is aan de beurt`);
+    : (roundFinished ? `⏳ ${icon} Team ${nextTeam} is zo aan de beurt` : `${icon} Team ${currentTeam} is aan de beurt`);
   el('words').innerHTML = (roundActive || graceActive)
     ? cards[idx].map((w,i) => `<div class="word clickable ${selectedWords.has(i) ? 'correct' : ''}" data-word="${i}">${escapeHtml(w)}</div>`).join('')
     : '<div class="hiddenWords">De woorden verschijnen zodra je op <b>Start ronde</b> klikt.</div>';
@@ -374,6 +404,20 @@ function stopTimer() { if(interval) clearInterval(interval); interval = null; if
 function addPoint(delta) {
   if (currentTeam === 'A') scoreA = Math.max(0, scoreA + delta);
   else scoreB = Math.max(0, scoreB + delta);
+}
+function advanceCard() {
+  idx++;
+  if (idx >= cards.length) {
+    cards = shuffleArray([...originalCards]);
+    idx = 0;
+  }
+}
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 function toggleWord(i) {
   if (!roundActive && !graceActive) return;
@@ -438,7 +482,7 @@ function nextCard() {
   // Tijdens een ronde betekent deze knop: passen.
   // Je krijgt meteen een nieuw kaartje, maar de timer en de beurt lopen door.
   if (roundActive) {
-    idx = (idx + 1) % cards.length;
+    advanceCard();
     selectedWords.clear();
     render();
     return;
@@ -447,17 +491,66 @@ function nextCard() {
   // Na afloop betekent de knop: door naar de volgende ronde en dus naar het andere team.
   stopTimer();
   currentTeam = currentTeam === 'A' ? 'B' : 'A';
-  idx = (idx + 1) % cards.length;
+  advanceCard();
   time = 30; roundScore = 0; selectedWords.clear(); roundActive = false; graceActive = false; roundFinished = false; render();
 }
 function shuffle() {
   stopTimer();
-  cards = [...originalCards].sort(() => Math.random() - 0.5);
+  cards = shuffleArray([...originalCards]);
   idx = 0; time = 30; roundScore = 0; selectedWords.clear(); roundActive = false; graceActive = false; roundFinished = false; render();
 }
+
+function parseTeacherText(text) {
+  const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let words = [];
+  for (const line of rawLines) {
+    const hasSep = /[,;\t]/.test(line);
+    if (hasSep) words.push(...line.split(/[,;\t]/).map(x => x.trim()).filter(Boolean));
+    else words.push(line);
+  }
+  const unique = [];
+  const seen = new Set();
+  for (const w of words) {
+    const key = w.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); unique.push(w); }
+  }
+  const result = [];
+  for (let i=0; i+4<unique.length; i+=5) result.push(unique.slice(i, i+5));
+  return result;
+}
+function loadSavedCards() {
+  try {
+    const saved = localStorage.getItem('thirtySecondsCards');
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed) && parsed.every(c => Array.isArray(c) && c.length === 5)) return parsed;
+  } catch(e) {}
+  return null;
+}
+function applyNewCards(newCards, save=true) {
+  if (!newCards || newCards.length < 1) {
+    el('teacherStatus').textContent = 'Te weinig woorden. Je hebt minimaal 5 woorden nodig.';
+    return;
+  }
+  stopTimer();
+  originalCards = newCards;
+  if (save) localStorage.setItem('thirtySecondsCards', JSON.stringify(newCards));
+  cards = shuffleArray([...originalCards]);
+  idx = 0; time = 30; roundScore = 0; scoreA = 0; scoreB = 0; currentTeam='A'; selectedWords.clear(); roundActive=false; graceActive=false; roundFinished=false;
+  el('teacherStatus').textContent = `${newCards.length} kaartjes geladen (${newCards.length*5} woorden).`;
+  el('introOverlay').classList.remove('show');
+  render();
+}
+
 el('startBtn').onclick = start;
-el('startGameBtn').onclick = () => { el('introOverlay').classList.remove('show'); };
-el('rulesBtn').onclick = () => { el('introOverlay').classList.add('show'); };
+el('startGameBtn').onclick = () => {
+  if (!gameStarted) gameStarted = true;
+  el('introOverlay').classList.remove('show');
+};
+el('rulesBtn').onclick = () => {
+  el('startGameBtn').textContent = gameStarted ? 'Sluiten' : 'Start spel';
+  el('introOverlay').classList.add('show');
+};
 el('handoffStartBtn').onclick = () => { el('handoffOverlay').classList.remove('show'); nextCard(); start(); };
 el('handoffCloseBtn').onclick = () => { el('handoffOverlay').classList.remove('show'); nextCard(); };
 el('nextBtn').onclick = nextCard;
@@ -466,7 +559,16 @@ el('words').onclick = (e) => {
   if (word) toggleWord(Number(word.dataset.word));
 };
 el('shuffleBtn').onclick = shuffle;
-el('resetBtn').onclick = () => { stopTimer(); el('countdownOverlay').classList.remove('show'); el('handoffOverlay').classList.remove('show'); idx=0; time=30; roundScore=0; scoreA=0; scoreB=0; currentTeam='A'; selectedWords.clear(); roundActive=false; graceActive=false; roundFinished=false; shuffle(); el('introOverlay').classList.add('show'); };
+el('resetBtn').onclick = () => { stopTimer(); el('countdownOverlay').classList.remove('show'); el('handoffOverlay').classList.remove('show'); idx=0; time=30; roundScore=0; scoreA=0; scoreB=0; currentTeam='A'; selectedWords.clear(); roundActive=false; graceActive=false; roundFinished=false; gameStarted=false; shuffle(); el('startGameBtn').textContent='Start spel'; el('introOverlay').classList.add('show'); };
+el('importBtn').onclick = () => applyNewCards(parseTeacherText(el('teacherInput').value));
+el('restoreBtn').onclick = () => { localStorage.removeItem('thirtySecondsCards'); applyNewCards([...defaultCards], false); el('teacherStatus').textContent = `Originele kaartjes hersteld (${defaultCards.length} kaartjes).`; };
+el('teacherFile').onchange = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { el('teacherInput').value = String(reader.result || ''); el('teacherStatus').textContent = 'Bestand ingelezen. Klik op “Gebruik deze woorden”.'; };
+  reader.readAsText(file);
+};
 shuffle();
 </script>
 </body>
