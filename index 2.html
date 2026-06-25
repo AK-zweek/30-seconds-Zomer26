@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>30 Seconds - klasversie</title>
+<style>
+  :root { --bg:#f7f7fb; --card:#ffffff; --text:#15151f; --muted:#606070; --accent:#2f5cff; --danger:#d93025; --ok:#15803d; --warn:#f59e0b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width: 820px; margin: 0 auto; padding: 10px 12px 18px; }
+  .top { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+  h1 { margin:0; font-size: clamp(1.35rem, 3vw, 2.1rem); }
+  .sub { color:var(--muted); margin:4px 0 0; font-size:.9rem; }
+  .panel { background:var(--card); border-radius:18px; padding:14px; box-shadow:0 6px 22px rgba(0,0,0,.08); margin-top:12px; }
+  .stats { display:grid; grid-template-columns: repeat(4, minmax(95px,1fr)); gap:8px; margin-top:8px; }
+  .stat { background:#f1f2f8; border-radius:12px; padding:8px; text-align:center; }
+  .stat b { display:block; font-size:1.15rem; }
+  .timer { font-size: clamp(2.6rem, 10vw, 5.2rem); font-weight:800; line-height:1; text-align:center; margin:10px 0; }
+  .timer.low { color:var(--danger); }
+  .words { display:grid; grid-template-columns:1fr; gap:7px; margin:10px auto; max-width:580px; min-height:230px; align-content:center; }
+  .word { font-size: clamp(1.05rem, 3.2vw, 1.85rem); font-weight:750; text-align:center; background:#f7f7fb; border-radius:13px; padding:9px 12px; border:2px solid transparent; }
+  .word.clickable { cursor:pointer; }
+  .word.correct { background:#dcfce7; border-color:#16a34a; color:#14532d; }
+  .hiddenWords { text-align:center; color:var(--muted); background:#f7f7fb; border-radius:13px; padding:28px 12px; font-weight:700; }
+  .buttons { display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-top:10px; }
+  button { appearance:none; border:0; border-radius:11px; padding:9px 12px; font-size:.9rem; font-weight:700; cursor:pointer; background:#e8eafe; color:var(--text); }
+  button.primary { background:var(--accent); color:white; }
+  button.good { background:var(--ok); color:white; }
+  button.danger { background:var(--danger); color:white; }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  .utilityBtn { background:#eef2ff; }
+  .screenOverlay { position:fixed; inset:0; background:rgba(247,247,251,.96); display:none; align-items:center; justify-content:center; padding:14px; z-index:20; }
+  .screenOverlay.show { display:flex; }
+  .introCard { width:min(720px, 100%); background:white; border-radius:20px; padding:18px; box-shadow:0 10px 38px rgba(0,0,0,.14); }
+  .introCard h2 { margin:0 0 8px; font-size:clamp(1.35rem, 4vw, 2rem); }
+  .introCard ol { margin:10px 0 14px; padding-left:22px; line-height:1.35; }
+  .introCard li { margin:5px 0; }
+  .countdown { font-size:clamp(5rem, 20vw, 9rem); font-weight:900; text-align:center; color:var(--accent); line-height:1; }
+  .handoff { text-align:center; }
+  .handoff h2 { font-size:clamp(1.6rem, 5vw, 2.4rem); }
+  details { margin-top:10px; color:var(--muted); }
+  summary { cursor:pointer; font-weight:700; color:var(--text); }
+  .small { font-size:.82rem; color:var(--muted); }
+  @media (max-width:650px) { .stats { grid-template-columns: repeat(2, 1fr); } .panel { padding:12px; } .words { min-height:220px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>30 Seconds</h1>
+      <p class="sub">Klasversie met eigen kaartjes • 32 kaarten • 30 seconden</p>
+    </div>
+    <div class="buttons" style="margin-top:0;">
+      <button id="rulesBtn" class="utilityBtn">❓ Speluitleg</button>
+      <button id="shuffleBtn">Schud kaarten</button>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div id="teamBanner" style="font-size:1.2rem;font-weight:700;text-align:center;padding:8px;border-radius:10px;background:#e8f0ff;color:#1d4ed8;margin-bottom:10px;"></div>
+    <div class="stats">
+      <div class="stat"><span>Kaart</span><b id="cardNr">1/32</b></div>
+      <div class="stat"><span>Team A</span><b id="scoreA">0</b></div>
+      <div class="stat"><span>Team B</span><b id="scoreB">0</b></div>
+      <div class="stat"><span>Goed deze ronde</span><b id="roundScore">0</b></div>
+    </div>
+    <div id="timer" class="timer">30</div>
+    <div id="words" class="words"></div>
+    <div class="buttons">
+      <button id="startBtn" class="primary">Start ronde</button>
+      <button id="nextBtn" class="primary">Pass: nieuw kaartje</button>
+      <button id="resetBtn" class="danger">Reset</button>
+    </div>
+    <p class="small" style="text-align:center;margin-top:14px;">Tip: klik tijdens je ronde direct op elk goed geraden woord. Na 30 seconden krijg je nog 3 seconden om de laatste goede antwoorden aan te klikken. Passen kan alleen tijdens de 30 seconden.</p>
+  </section>
+
+  <details>
+    <summary>Spelregels / docentopties</summary>
+    <p>Gebruik één laptop per groepje of projecteer klassikaal. Met <b>Schud kaarten</b> wordt de volgorde willekeurig. Scores blijven staan tot je op reset drukt.</p>
+  </details>
+</main>
+
+<div id="introOverlay" class="screenOverlay show">
+  <div class="introCard">
+    <h2>🎲 30 Seconds – Zomereditie</h2>
+    <h3>Hoe speel je?</h3>
+    <ol>
+      <li>Vorm teams van <b>minimaal 2 personen</b>. Per twee teams is <b>één laptop</b> nodig.</li>
+      <li>Geef de laptop aan de speler van het team dat begint met omschrijven.</li>
+      <li>Klik op <b>Start spel</b>. Daarna kun je de eerste ronde starten.</li>
+      <li>Vanaf <b>Start ronde</b> verschijnen de woorden en begint de timer van <b>30 seconden</b>.</li>
+      <li><b>Klik tijdens je ronde direct op elk woord dat goed geraden is.</b> Het woord kleurt groen en telt automatisch als punt. Na 30 seconden heb je nog <b>3 seconden</b> om de laatste woorden aan te klikken die nét op tijd geraden zijn.</li>
+      <li>Kom je niet uit een woord? Klik tijdens de ronde op <b>Pass</b> voor een nieuw kaartje. De timer loopt gewoon door.</li>
+      <li>Na de ronde geef je de laptop door aan het andere team.</li>
+      <li>Wissel iedere ronde binnen je team wie omschrijft en wie raadt.</li>
+    </ol>
+    <div class="buttons">
+      <button id="startGameBtn" class="primary">Start spel</button>
+    </div>
+  </div>
+</div>
+
+<div id="countdownOverlay" class="screenOverlay">
+  <div class="introCard">
+    <div id="countdownText" class="countdown">3</div>
+  </div>
+</div>
+
+<div id="handoffOverlay" class="screenOverlay">
+  <div class="introCard handoff">
+    <h2>⏳ Wissel van team</h2>
+    <p id="handoffTeam" style="font-size:1.35rem;font-weight:800;"></p>
+    <p>Geef de laptop door aan het andere team. De woorden blijven verborgen tot de volgende ronde start.</p>
+    <div class="buttons">
+      <button id="handoffStartBtn" class="primary">Start ronde</button>
+      <button id="handoffCloseBtn">Nog even wachten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const originalCards = [
+  [
+    "Indonesië",
+    "Mbappé",
+    "Escaperoom",
+    "Appel",
+    "Suppen"
+  ],
+  [
+    "YouTube",
+    "Toetsweek",
+    "slippers",
+    "14",
+    "SpongeBob"
+  ],
+  [
+    "worteltjes",
+    "luchtbed",
+    "evenaar",
+    "minecraft",
+    "Cavia"
+  ],
+  [
+    "Koningin Máxima",
+    "Pinguïn",
+    "Bikini",
+    "Donyell Malen",
+    "surfen"
+  ],
+  [
+    "Tropisch",
+    "Digibord",
+    "Memphis Depay",
+    "Frietjes",
+    "Uitslapen"
+  ],
+  [
+    "Sint Maarten",
+    "Strand",
+    "Denzel Dumfries",
+    "Pizza",
+    "Lokaal"
+  ],
+  [
+    "Kerstmis",
+    "Zara Larsson",
+    "Raketje",
+    "Brian Brobbey",
+    "Palmboom"
+  ],
+  [
+    "Hittegolf",
+    "Cristiano Ronaldo",
+    "Parasol",
+    "Mevrouw Harink",
+    "Donald Duck"
+  ],
+  [
+    "Ernie",
+    "Waterijsje",
+    "Mickey Mouse",
+    "Bonaire",
+    "Zomervakantie"
+  ],
+  [
+    "Ronald Koeman",
+    "Barbecue",
+    "Taalhuis",
+    "Vietnam",
+    "Bosbad Amersfoort"
+  ],
+  [
+    "Van links naar rechts",
+    "Sinterklaascadeau",
+    "Thailand",
+    "Pinkpop",
+    "Messi"
+  ],
+  [
+    "W213",
+    "Instagram",
+    "Olivia Dean",
+    "Airco",
+    "Henschotermeer"
+  ],
+  [
+    "Onweer",
+    "Justin Bieber",
+    "TikTok",
+    "Doolhof",
+    "De Karseboom"
+  ],
+  [
+    "Beyoncé",
+    "Stagiair",
+    "67",
+    "Coachella",
+    "Kunstvilla"
+  ],
+  [
+    "Stockholm",
+    "WK voetbal",
+    "Spinazie",
+    "tussenuur",
+    "Femke Bol"
+  ],
+  [
+    "Rome",
+    "Broccoli",
+    "Wereldplein",
+    "Onderwijsassistent",
+    "Lionel Messi"
+  ],
+  [
+    "Eiffeltoren",
+    "Roze",
+    "Snapchat",
+    "De slimste mens",
+    "Mevrouw Busser"
+  ],
+  [
+    "Billie Eilish",
+    "Adidas",
+    "Middelbare school",
+    "Ibiza",
+    "Code oranje"
+  ],
+  [
+    "Snollebollekes",
+    "Middellandse Zee",
+    "Pannenkoeken",
+    "Aula",
+    "Keycord"
+  ],
+  [
+    "Zwembad",
+    "Dopper",
+    "Hup Holland Hop",
+    "Keuzeruimte",
+    "Utrecht"
+  ],
+  [
+    "IJsblokjes",
+    "Examen",
+    "Kokosnoot",
+    "Mentor",
+    "Smintjes"
+  ],
+  [
+    "Brazilië",
+    "Watermeloen",
+    "Cody Gakpo",
+    "Koppelpoort",
+    "Sabrina Carpenter"
+  ],
+  [
+    "Woestijn",
+    "Zonnebrand",
+    "Lamine Yamal",
+    "De Lange Jan",
+    "Roblox"
+  ],
+  [
+    "Amazone",
+    "Ventilator",
+    "Virgil van Dijk",
+    "Dierenpark Amersfoort",
+    "Skibidi"
+  ],
+  [
+    "Lagos",
+    "Tropennacht",
+    "Frenkie de Jong",
+    "De Amersfoortse Kei",
+    "Fristi"
+  ],
+  [
+    "Regenwoud",
+    "Zwembroek",
+    "Vinicius Junior",
+    "Mondriaanhuis",
+    "EA FC"
+  ],
+  [
+    "Klimaat",
+    "Festival",
+    "Oranje",
+    "Eemplein",
+    "Antoon"
+  ],
+  [
+    "Savanne",
+    "Zonnesteek",
+    "Jude Bellingham",
+    "Het Hof",
+    "Wednesday"
+  ],
+  [
+    "Moesson",
+    "Waterpistool",
+    "Ryan Gravenberch",
+    "De Eem",
+    "Koffiemok"
+  ],
+  [
+    "Rio de Janeiro",
+    "Schaduw",
+    "Tijjani Reijnders",
+    "Vathorst",
+    "Capri-Sun"
+  ],
+  [
+    "Vulkaan",
+    "Slushie",
+    "Penalty",
+    "Station Amersfoort",
+    "Stranger Things"
+  ],
+  [
+    "Duurzaam",
+    "Zwemband",
+    "Scheidsrechter",
+    "Het Eemhuis",
+    "Fortnite"
+  ]
+];
+let cards = [...originalCards];
+let idx = 0, time = 30, interval = null, graceTimeout = null, countdownTimeout = null, roundScore = 0, scoreA = 0, scoreB = 0, roundActive = false, graceActive = false, currentTeam="A", roundFinished = false;
+let selectedWords = new Set();
+const el = id => document.getElementById(id);
+function render() {
+  el('cardNr').textContent = `${idx+1}/${cards.length}`;
+  el('scoreA').textContent = scoreA;
+  el('scoreB').textContent = scoreB;
+  el('roundScore').textContent = roundScore;
+  el('timer').textContent = graceActive ? 'Tijd!' : time;
+  el('timer').classList.toggle('low', time <= 5 || graceActive);
+  const nextTeam = currentTeam === 'A' ? 'B' : 'A';
+  el('teamBanner').textContent = graceActive
+    ? `⏰ Tijd! Nog 3 seconden om laatste goede woorden aan te klikken`
+    : (roundFinished ? `⏳ Team ${nextTeam} is zo aan de beurt` : `🔵 Team ${currentTeam} is aan de beurt`);
+  el('words').innerHTML = (roundActive || graceActive)
+    ? cards[idx].map((w,i) => `<div class="word clickable ${selectedWords.has(i) ? 'correct' : ''}" data-word="${i}">${escapeHtml(w)}</div>`).join('')
+    : '<div class="hiddenWords">De woorden verschijnen zodra je op <b>Start ronde</b> klikt.</div>';
+  el('startBtn').disabled = roundActive || graceActive;
+  el('nextBtn').disabled = graceActive;
+  el('nextBtn').textContent = roundActive ? 'Pass: nieuw kaartje' : (graceActive ? 'Pass is nu dicht' : `Volgende ronde: Team ${nextTeam}`);
+}
+function escapeHtml(s) { return s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function stopTimer() { if(interval) clearInterval(interval); interval = null; if(graceTimeout) clearTimeout(graceTimeout); graceTimeout = null; if(countdownTimeout) clearTimeout(countdownTimeout); countdownTimeout = null; }
+function addPoint(delta) {
+  if (currentTeam === 'A') scoreA = Math.max(0, scoreA + delta);
+  else scoreB = Math.max(0, scoreB + delta);
+}
+function toggleWord(i) {
+  if (!roundActive && !graceActive) return;
+  if (selectedWords.has(i)) { selectedWords.delete(i); roundScore--; addPoint(-1); }
+  else { selectedWords.add(i); roundScore++; addPoint(1); }
+  render();
+}
+function start() {
+  runCountdown(() => beginRound());
+}
+function beginRound() {
+  stopTimer(); time = 30; roundScore = 0; selectedWords.clear(); roundActive = true; graceActive = false; roundFinished = false; render();
+  interval = setInterval(() => {
+    time--;
+    if(time <= 0) {
+      time = 0;
+      if(interval) clearInterval(interval); interval = null;
+      roundActive = false;
+      graceActive = true;
+      render();
+      graceTimeout = setTimeout(finishRound, 3000);
+      return;
+    }
+    render();
+  }, 1000);
+}
+function finishRound() {
+  graceActive = false;
+  roundFinished = true;
+  render();
+  showHandoff();
+}
+function runCountdown(done) {
+  stopTimer();
+  const overlay = el('countdownOverlay');
+  const text = el('countdownText');
+  let count = 3;
+  overlay.classList.add('show');
+  text.textContent = count;
+  const tick = () => {
+    count--;
+    if (count > 0) {
+      text.textContent = count;
+      countdownTimeout = setTimeout(tick, 700);
+    } else {
+      text.textContent = 'START!';
+      countdownTimeout = setTimeout(() => {
+        overlay.classList.remove('show');
+        done();
+      }, 650);
+    }
+  };
+  countdownTimeout = setTimeout(tick, 700);
+}
+function showHandoff() {
+  const nextTeam = currentTeam === 'A' ? 'B' : 'A';
+  el('handoffTeam').textContent = `Team ${nextTeam} is aan de beurt`;
+  el('handoffOverlay').classList.add('show');
+}
+function nextCard() {
+  if (graceActive) return;
+  // Tijdens een ronde betekent deze knop: passen.
+  // Je krijgt meteen een nieuw kaartje, maar de timer en de beurt lopen door.
+  if (roundActive) {
+    idx = (idx + 1) % cards.length;
+    selectedWords.clear();
+    render();
+    return;
+  }
+
+  // Na afloop betekent de knop: door naar de volgende ronde en dus naar het andere team.
+  stopTimer();
+  currentTeam = currentTeam === 'A' ? 'B' : 'A';
+  idx = (idx + 1) % cards.length;
+  time = 30; roundScore = 0; selectedWords.clear(); roundActive = false; graceActive = false; roundFinished = false; render();
+}
+function shuffle() {
+  stopTimer();
+  cards = [...originalCards].sort(() => Math.random() - 0.5);
+  idx = 0; time = 30; roundScore = 0; selectedWords.clear(); roundActive = false; graceActive = false; roundFinished = false; render();
+}
+el('startBtn').onclick = start;
+el('startGameBtn').onclick = () => { el('introOverlay').classList.remove('show'); };
+el('rulesBtn').onclick = () => { el('introOverlay').classList.add('show'); };
+el('handoffStartBtn').onclick = () => { el('handoffOverlay').classList.remove('show'); nextCard(); start(); };
+el('handoffCloseBtn').onclick = () => { el('handoffOverlay').classList.remove('show'); nextCard(); };
+el('nextBtn').onclick = nextCard;
+el('words').onclick = (e) => {
+  const word = e.target.closest('[data-word]');
+  if (word) toggleWord(Number(word.dataset.word));
+};
+el('shuffleBtn').onclick = shuffle;
+el('resetBtn').onclick = () => { stopTimer(); el('countdownOverlay').classList.remove('show'); el('handoffOverlay').classList.remove('show'); idx=0; time=30; roundScore=0; scoreA=0; scoreB=0; currentTeam='A'; selectedWords.clear(); roundActive=false; graceActive=false; roundFinished=false; shuffle(); el('introOverlay').classList.add('show'); };
+shuffle();
+</script>
+</body>
+</html>
